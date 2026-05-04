@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="pt">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Monitoring Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', path='css/style.css') }}" rel="stylesheet">
+    
+</head>
+
+<body class="dashboard-body">
+
+    <div class="container-fluid py-4 px-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="dashboard-title text-white">Network Monitoring Dashboard</h1>
+            </div>
+
+            <button class="btn btn-info btn-add-host" data-bs-toggle="modal" data-bs-target="#modalNovoHost">
+                + Adicionar Host
+            </button>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <div class="col-md-3">
+                <div class="card dashboard-card stat-card">
+                    <div class="card-body">
+                        <p class="stat-label">Hosts Ativos</p>
+                        <h2 class="stat-value">{{ total_hosts }}</h2>
+                        
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-9">
+                <div class="card dashboard-card">
+                    <div class="card-body">
+                        <h3 class="section-title mb-3">Estado dos Hosts</h3>
+
+                        <div class="table-responsive">
+                            <table class="table table-dark table-hover align-middle host-table">
+                                <thead>
+                                    <tr>
+                                        <th>Host</th>
+                                        <th>IP</th>
+                                        <th>Descrição</th>
+                                        <th>Tipo</th>
+                                        <th>Ativo</th>
+                                        <th>SNMP</th>
+                                        <th>Serviços</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for host in hosts %}
+                                    <tr>
+                                        <td>
+                                            <a href="/hosts/{{ host.id }}/detalhe"
+                                                class="text-info text-decoration-none fw-semibold">
+                                                {{ host.nome }}
+                                            </a>
+                                        </td>
+                                        <td>{{ host.endereco_ip }}</td>
+                                        <td>{{ host.descricao or '-' }}</td>
+                                        <td>{{ host.tipo_host.nome if host.tipo_host else '-' }}</td>
+                                        <td>
+                                            {% if host.ativo %}
+                                            <span class="badge bg-success">Sim</span>
+                                            {% else %}
+                                            <span class="badge bg-danger">Não</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if host.configuracao_snmp and host.configuracao_snmp.ativo %}
+                                            <span class="badge bg-info text-dark">Ativo</span>
+                                            {% else %}
+                                            <span class="badge bg-secondary">Não</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if host.host_servicos %}
+                                            {% for hs in host.host_servicos %}
+                                            <span class="badge bg-light text-dark me-1 mb-1">{{ hs.tipo_servico.nome
+                                                }}</span>
+                                            {% endfor %}
+                                            {% else %}
+                                            <span class="text-secondary">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="d-flex gap-2">
+                                                <button type="button" class="btn btn-sm btn-warning"
+                                                    data-bs-toggle="modal" data-bs-target="#modalEditarHost"
+                                                    data-id="{{ host.id }}" data-nome="{{ host.nome }}"
+                                                    data-endereco_ip="{{ host.endereco_ip }}"
+                                                    data-descricao="{{ host.descricao or '' }}"
+                                                    data-tipo_host_id="{{ host.tipo_host_id }}"
+                                                    data-snmp="{{ '1' if host.configuracao_snmp else '0' }}"
+                                                    data-versao_snmp="{{ host.configuracao_snmp.versao_snmp if host.configuracao_snmp else '' }}"
+                                                    data-comunidade="{{ host.configuracao_snmp.comunidade if host.configuracao_snmp else '' }}"
+                                                    data-porta_snmp="{{ host.configuracao_snmp.porta_snmp if host.configuracao_snmp else 161 }}"
+                                                    data-servicos_ids="{% for hs in host.host_servicos %}{{ hs.tipo_servico_id }}{% if not loop.last %},{% endif %}{% endfor %}"
+                                                    onclick="abrirModalEditar(this)">
+                                                    Editar
+                                                </button>
+
+                                                <form method="post" action="/hosts/form/{{ host.id }}/eliminar"
+                                                    onsubmit="return confirm('Tens a certeza que queres eliminar este host?');">
+                                                    <button type="submit" class="btn btn-sm btn-danger">
+                                                        Eliminar
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% else %}
+                                    <tr>
+                                        <td colspan="8" class="text-center text-secondary">
+                                            Ainda não existem hosts registados.
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Novo Host -->
+    <div class="modal fade" id="modalNovoHost" tabindex="-1" aria-labelledby="modalNovoHostLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content modal-dashboard">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title" id="modalNovoHostLabel">Adicionar Novo Host</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+
+                <form method="post" action="/hosts/form">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="nome" class="form-label">Nome</label>
+                            <input type="text" class="form-control form-dashboard" id="nome" name="nome" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="endereco_ip" class="form-label">Endereço IP</label>
+                            <input type="text" class="form-control form-dashboard" id="endereco_ip" name="endereco_ip"
+                                required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="descricao" class="form-label">Descrição</label>
+                            <textarea class="form-control form-dashboard" id="descricao" name="descricao"
+                                rows="3"></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="tipo_host_id" class="form-label">Tipo de Host</label>
+                            <select class="form-select form-dashboard" id="tipo_host_id" name="tipo_host_id" required>
+                                <option value="">Selecione um tipo</option>
+                                {% for tipo in tipos_host %}
+                                <option value="{{ tipo.id }}">{{ tipo.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <hr>
+                        <h6 class="mb-3">SNMP</h6>
+
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="usar_snmp" name="usar_snmp">
+                            <label class="form-check-label" for="usar_snmp">
+                                Usar monitorização SNMP
+                            </label>
+                        </div>
+
+                        <div id="campos-snmp" style="display: none;">
+                            <div class="mb-3">
+                                <label for="versao_snmp" class="form-label">Versão SNMP</label>
+                                <select class="form-select form-dashboard" id="versao_snmp" name="versao_snmp">
+                                    <option value="">Selecione a versão</option>
+                                    <option value="v1">v1</option>
+                                    <option value="v2c">v2c</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="comunidade" class="form-label">Comunidade</label>
+                                <input type="text" class="form-control form-dashboard" id="comunidade" name="comunidade"
+                                    placeholder="public">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="porta_snmp" class="form-label">Porta SNMP</label>
+                                <input type="number" class="form-control form-dashboard" id="porta_snmp"
+                                    name="porta_snmp" value="161">
+                            </div>
+                        </div>
+
+                        <hr>
+                        <h6 class="mb-3">Serviços a monitorizar</h6>
+
+                        <div class="row">
+                            {% for servico in tipos_servico %}
+                            <div class="col-md-6 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="servico_{{ servico.id }}"
+                                        name="servicos_ids" value="{{ servico.id }}">
+                                    <label class="form-check-label" for="servico_{{ servico.id }}">
+                                        {{ servico.nome }}
+                                        {% if servico.protocolo %}
+                                        <small class="text-secondary">({{ servico.protocolo }})</small>
+                                        {% endif %}
+                                    </label>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <small class="text-secondary">
+                            Os serviços selecionados serão criados com valores por defeito: intervalo 60s e timeout 5s.
+                        </small>
+                    </div>
+
+                    <div class="modal-footer border-0">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-info">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Editar Host -->
+    <div class="modal fade" id="modalEditarHost" tabindex="-1" aria-labelledby="modalEditarHostLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content modal-dashboard">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title" id="modalEditarHostLabel">Editar Host</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+
+                <form method="post" id="formEditarHost">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="editar_nome" class="form-label">Nome</label>
+                            <input type="text" class="form-control form-dashboard" id="editar_nome" name="nome"
+                                required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="editar_endereco_ip" class="form-label">Endereço IP</label>
+                            <input type="text" class="form-control form-dashboard" id="editar_endereco_ip"
+                                name="endereco_ip" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="editar_descricao" class="form-label">Descrição</label>
+                            <textarea class="form-control form-dashboard" id="editar_descricao" name="descricao"
+                                rows="3"></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="editar_tipo_host_id" class="form-label">Tipo de Host</label>
+                            <select class="form-select form-dashboard" id="editar_tipo_host_id" name="tipo_host_id"
+                                required>
+                                <option value="">Selecione um tipo</option>
+                                {% for tipo in tipos_host %}
+                                <option value="{{ tipo.id }}">{{ tipo.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <hr>
+                        <h6 class="mb-3">SNMP</h6>
+
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="editar_usar_snmp" name="usar_snmp">
+                            <label class="form-check-label" for="editar_usar_snmp">
+                                Usar monitorização SNMP
+                            </label>
+                        </div>
+
+                        <div id="editar_campos_snmp" style="display: none;">
+                            <div class="mb-3">
+                                <label for="editar_versao_snmp" class="form-label">Versão SNMP</label>
+                                <select class="form-select form-dashboard" id="editar_versao_snmp" name="versao_snmp">
+                                    <option value="">Selecione a versão</option>
+                                    <option value="v1">v1</option>
+                                    <option value="v2c">v2c</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="editar_comunidade" class="form-label">Comunidade</label>
+                                <input type="text" class="form-control form-dashboard" id="editar_comunidade"
+                                    name="comunidade">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="editar_porta_snmp" class="form-label">Porta SNMP</label>
+                                <input type="number" class="form-control form-dashboard" id="editar_porta_snmp"
+                                    name="porta_snmp" value="161">
+                            </div>
+                        </div>
+
+                        <hr>
+                        <h6 class="mb-3">Serviços a monitorizar</h6>
+
+                        <div class="row">
+                            {% for servico in tipos_servico %}
+                            <div class="col-md-6 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input editar-servico-checkbox" type="checkbox"
+                                        id="editar_servico_{{ servico.id }}" name="servicos_ids"
+                                        value="{{ servico.id }}">
+                                    <label class="form-check-label" for="editar_servico_{{ servico.id }}">
+                                        {{ servico.nome }}
+                                        {% if servico.protocolo %}
+                                        <small class="text-secondary">({{ servico.protocolo }})</small>
+                                        {% endif %}
+                                    </label>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <small class="text-secondary">
+                            Ao editar, os serviços antigos do host são substituídos pela nova seleção.
+                        </small>
+                    </div>
+
+                    <div class="modal-footer border-0">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-warning">Guardar Alterações</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const usarSnmpCheckbox = document.getElementById("usar_snmp");
+        const camposSnmp = document.getElementById("campos-snmp");
+        const versaoSnmp = document.getElementById("versao_snmp");
+        const comunidade = document.getElementById("comunidade");
+
+        function atualizarCamposSnmpCriacao() {
+            if (usarSnmpCheckbox.checked) {
+                camposSnmp.style.display = "block";
+                versaoSnmp.required = true;
+                comunidade.required = true;
+            } else {
+                camposSnmp.style.display = "none";
+                versaoSnmp.required = false;
+                comunidade.required = false;
+                versaoSnmp.value = "";
+                comunidade.value = "";
+                document.getElementById("porta_snmp").value = 161;
+            }
+        }
+
+        usarSnmpCheckbox.addEventListener("change", atualizarCamposSnmpCriacao);
+
+        const editarUsarSnmpCheckbox = document.getElementById("editar_usar_snmp");
+        const editarCamposSnmp = document.getElementById("editar_campos_snmp");
+        const editarVersaoSnmp = document.getElementById("editar_versao_snmp");
+        const editarComunidade = document.getElementById("editar_comunidade");
+
+        function atualizarCamposSnmpEdicao() {
+            if (editarUsarSnmpCheckbox.checked) {
+                editarCamposSnmp.style.display = "block";
+                editarVersaoSnmp.required = true;
+                editarComunidade.required = true;
+            } else {
+                editarCamposSnmp.style.display = "none";
+                editarVersaoSnmp.required = false;
+                editarComunidade.required = false;
+                editarVersaoSnmp.value = "";
+                editarComunidade.value = "";
+                document.getElementById("editar_porta_snmp").value = 161;
+            }
+        }
+
+        editarUsarSnmpCheckbox.addEventListener("change", atualizarCamposSnmpEdicao);
+
+        function abrirModalEditar(botao) {
+            const id = botao.getAttribute("data-id");
+            const nome = botao.getAttribute("data-nome");
+            const enderecoIp = botao.getAttribute("data-endereco_ip");
+            const descricao = botao.getAttribute("data-descricao");
+            const tipoHostId = botao.getAttribute("data-tipo_host_id");
+            const snmp = botao.getAttribute("data-snmp");
+            const versaoSnmp = botao.getAttribute("data-versao_snmp");
+            const comunidade = botao.getAttribute("data-comunidade");
+            const portaSnmp = botao.getAttribute("data-porta_snmp");
+            const servicosIds = botao.getAttribute("data-servicos_ids");
+
+            document.getElementById("formEditarHost").action = `/hosts/form/${id}/editar`;
+            document.getElementById("editar_nome").value = nome;
+            document.getElementById("editar_endereco_ip").value = enderecoIp;
+            document.getElementById("editar_descricao").value = descricao;
+            document.getElementById("editar_tipo_host_id").value = tipoHostId;
+
+            document.getElementById("editar_usar_snmp").checked = snmp === "1";
+            document.getElementById("editar_versao_snmp").value = versaoSnmp || "";
+            document.getElementById("editar_comunidade").value = comunidade || "";
+            document.getElementById("editar_porta_snmp").value = portaSnmp || 161;
+
+            atualizarCamposSnmpEdicao();
+
+            document.querySelectorAll(".editar-servico-checkbox").forEach(checkbox => {
+                checkbox.checked = false;
+            });
+
+            if (servicosIds) {
+                const ids = servicosIds.split(",");
+                ids.forEach(idServico => {
+                    const checkbox = document.getElementById(`editar_servico_${idServico}`);
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                });
+            }
+        }
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>
