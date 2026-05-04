@@ -428,3 +428,15 @@ a span {
 .badge {
     color: #ffffff !important;
 }
+
+.alert-danger {
+    background-color: #2b0f0f !important;
+    color: #ff6b6b !important;
+    border: 1px solid #ff4d4d;
+}
+
+.alert-success {
+    background-color: #0f2b1a !important;
+    color: #4dff88 !important;
+    border: 1px solid #28a745;
+}

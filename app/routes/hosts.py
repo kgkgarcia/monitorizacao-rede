@@ -11,6 +11,10 @@ from app.models.host import Host
 from app.models.configuracao_snmp import ConfiguracaoSNMP
 from app.models.host_servico import HostServico
 from app.models.tipo_servico import TipoServico
+from app.checks.ssh_check import verificar_ssh
+from app.models.verificacao import Verificacao
+from app.scheduler.scheduler import verificar_servico_job
+from app.models.alerta import Alerta
 from app.schemas.host import HostCreate, HostUpdate, HostResponse
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
@@ -66,7 +70,7 @@ def criar_associacoes_servicos(db: Session, host_id: int, servicos_ids: Optional
             url=None,
             intervalo_verificacao_segundos=60,
             tempo_limite=5,
-            ativo=False
+            ativo=True
         )
         db.add(novo_host_servico)
 
@@ -89,7 +93,7 @@ def criar_host(host: HostCreate, db: Session = Depends(get_db)):
 
     return novo_host
 
-# recebe dadosdo formulario para criar host, incluindo configuração SNMP e serviços associados
+# recebe dados do formulario para criar host, incluindo configuração SNMP e serviços associados
 @router.post("/form")
 def criar_host_form(
     nome: str = Form(...),
@@ -232,11 +236,24 @@ def detalhe_host(host_id: int, request: Request, db: Session = Depends(get_db)):
     if not host:
         raise HTTPException(status_code=404, detail="Host não encontrado")
 
+    # 👉 ALERTAS ATIVOS
+    alertas = db.query(Alerta).filter(
+        Alerta.host_servico_id.in_([s.id for s in host.host_servicos]),
+        Alerta.resolvido == False
+    ).all()
+
+    # 👉 HISTÓRICO (últimas 10 verificações)
+    verificacoes = db.query(Verificacao).filter(
+        Verificacao.host_servico_id.in_([s.id for s in host.host_servicos])
+    ).order_by(Verificacao.data_verificacao.desc()).limit(10).all()
+
     return templates.TemplateResponse(
         request,
         "host_detalhe.html",
         {
-            "host": host
+            "host": host,
+            "alertas": alertas,
+            "verificacoes": verificacoes
         }
     )
     
@@ -281,3 +298,20 @@ def eliminar_host(host_id: int, db: Session = Depends(get_db)):
     db.commit()
 
     return {"mensagem": "Host eliminado com sucesso"}
+   
+     
+@router.post("/servico/{servico_id}/verificar")
+def verificar_servico_manual(servico_id: int, db: Session = Depends(get_db)):
+
+    servico = db.query(HostServico).filter(HostServico.id == servico_id).first()
+
+    if not servico:
+        raise HTTPException(status_code=404, detail="Serviço não encontrado")
+
+    # 👉 usa a mesma lógica do scheduler
+    verificar_servico_job(servico_id)
+
+    return RedirectResponse(
+        url=f"/hosts/{servico.host_id}/detalhe",
+        status_code=303
+    )

@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Text
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
+from sqlalchemy import text
 
 from app.database import Base
 
@@ -16,7 +17,8 @@ class HostServico(Base):
     url = Column(Text, nullable=True)
     intervalo_verificacao_segundos = Column(Integer, nullable=False)
     tempo_limite = Column(Integer, nullable=False)
-    ativo = Column(Boolean, nullable=False, default=True)
+    ativo = Column(Boolean, nullable=False, server_default=text("true"))
+    estado_atual = Column(Boolean, nullable=True)
     data_criacao = Column(DateTime, nullable=False, server_default=func.now())
 
     host = relationship("Host", back_populates="host_servicos")
