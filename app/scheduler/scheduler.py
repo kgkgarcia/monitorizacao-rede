@@ -10,6 +10,10 @@ from app.models.alerta import Alerta
 from app.checks.ssh_check import verificar_ssh
 from app.checks.http_check import verificar_http
 
+from app.checks.snmp_check import verificar_snmp
+from app.models.oid_snmp import OidSNMP
+from app.models.metrica_snmp import MetricaSNMP
+
 import platform
 import subprocess
 
@@ -54,13 +58,42 @@ def verificar_host_job(host_id: int):
         estado = ping_host(str(host.endereco_ip))
         host.ativo = estado
 
+        verificacao = Verificacao(
+            host_id=host.id,
+            metodo_verificacao="automatico",
+            estado="sucesso" if estado else "falha",
+        )
+        db.add(verificacao)
+        
+        # GERA ALERTA SE FALHAR
+
+        if not estado:
+            alerta_existente = db.query(Alerta).filter(
+                Alerta.host_id == host.id,
+                Alerta.tipo_alerta == "host_down",
+                Alerta.resolvido == False
+            ).first()
+
+            if not alerta_existente:
+                alerta = Alerta(
+                    host_id=host.id,
+                    tipo_alerta="host_down",
+                    mensagem=f"Host {host.nome} ({host.endereco_ip}) está inacessível"
+                )
+                db.add(alerta)
+        else:
+            db.query(Alerta).filter(
+                Alerta.host_id == host.id,
+                Alerta.tipo_alerta == "host_down",
+                Alerta.resolvido == False
+            ).update({"resolvido": True})
+
         db.commit()
 
     except Exception as e:
         print("Erro host:", e)
     finally:
         db.close()
-
 
 # -------------------------
 # JOB SERVIÇO
@@ -94,7 +127,12 @@ def verificar_servico_job(servico_id: int):
                 url,
                 servico.tempo_limite
             )
-
+            
+            if resultado["sucesso"]:
+                # preenche o url
+                if not servico.url:
+                    servico.url = url
+                    db.commit()
         else:
             return
 
@@ -150,8 +188,70 @@ def verificar_servico_job(servico_id: int):
 
     finally:
         db.close()
+## SNMP
+def verificar_snmp_job(host_id: int):
+    db: Session = SessionLocal()
+    try:
+        host = db.query(Host).get(host_id)
 
+        if not host or not host.configuracao_snmp or not host.configuracao_snmp.ativo:
+            return
 
+        snmp = host.configuracao_snmp
+        host_ip = str(host.endereco_ip)
+        algum_erro = False
+
+        # vai buscar os OIDs configurados para este host
+        oids = db.query(OidSNMP).filter(OidSNMP.host_id == host_id, OidSNMP.ativo == True).all()
+
+        for oid in oids:
+            resultado = verificar_snmp(
+                host_ip,
+                snmp.comunidade,
+                oid.oid,
+                snmp.porta_snmp
+            )
+            
+            print(f">>> {oid.nome} | {resultado['sucesso']} | {resultado['mensagem']}")
+
+            if resultado["sucesso"]:
+                metrica = MetricaSNMP(
+                    host_id=host.id,
+                    nome_metrica=oid.nome,
+                    oid=oid.oid,
+                    valor=resultado["valor"]
+                )
+                db.add(metrica)
+            else:
+                algum_erro = True
+
+        # alerta se algum OID falhar
+        if algum_erro:
+            alerta_existente = db.query(Alerta).filter(
+                Alerta.host_id == host.id,
+                Alerta.tipo_alerta == "snmp_down",
+                Alerta.resolvido == False
+            ).first()
+            if not alerta_existente:
+                db.add(Alerta(
+                    host_id=host.id,
+                    tipo_alerta="snmp_down",
+                    mensagem=f"SNMP do host {host.nome} não está a responder"
+                ))
+        else:
+            db.query(Alerta).filter(
+                Alerta.host_id == host.id,
+                Alerta.tipo_alerta == "snmp_down",
+                Alerta.resolvido == False
+            ).update({"resolvido": True})
+
+        db.commit()
+
+    except Exception as e:
+        print("Erro SNMP:", e)
+    finally:
+        db.close()
+        
 # -------------------------
 # INICIAR SCHEDULER
 # -------------------------
@@ -190,6 +290,17 @@ def iniciar_scheduler():
                 args=[servico.id],
                 id=f"servico_{servico.id}"
             )
+            
+        for host in hosts:
+          if host.configuracao_snmp and host.configuracao_snmp.ativo:
+            scheduler.add_job(
+                verificar_snmp_job,
+                "interval",
+                minutes=1,
+                args=[host.id],
+                id=f"snmp_{host.id}"
+         )
+            
 
     finally:
         db.close()

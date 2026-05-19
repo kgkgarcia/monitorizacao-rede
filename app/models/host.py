@@ -23,3 +23,4 @@ class Host(Base):
     metricas_snmp = relationship("MetricaSNMP", back_populates="host", cascade="all, delete-orphan")
     verificacoes = relationship("Verificacao", back_populates="host", cascade="all, delete-orphan")
     alertas = relationship("Alerta", back_populates="host", cascade="all, delete-orphan")
+    oids_snmp = relationship("OidSNMP", back_populates="host", cascade="all, delete-orphan")

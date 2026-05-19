@@ -18,6 +18,9 @@ from app.models.metrica_snmp import MetricaSNMP
 from app.models.verificacao import Verificacao
 from app.models.alerta import Alerta
 
+#checks
+from app.checks.oids import OIDS_DISPONIVEIS
+
 # ROUTES
 from app.routes.hosts import router as hosts_router
 
@@ -71,7 +74,8 @@ def home(request: Request):
                 "hosts": hosts,
                 "tipos_host": tipos_host,
                 "tipos_servico": tipos_servico,
-                "total_hosts": total_hosts_ativos
+                "total_hosts": total_hosts_ativos,
+                "oids_disponiveis": OIDS_DISPONIVEIS
             }
         )
     finally:

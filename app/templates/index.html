@@ -7,7 +7,7 @@
     <title>Network Monitoring Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="{{ url_for('static', path='css/style.css') }}" rel="stylesheet">
-    
+
 </head>
 
 <body class="dashboard-body">
@@ -29,7 +29,7 @@
                     <div class="card-body">
                         <p class="stat-label">Hosts Ativos</p>
                         <h2 class="stat-value">{{ total_hosts }}</h2>
-                        
+
                     </div>
                 </div>
             </div>
@@ -102,6 +102,7 @@
                                                     data-comunidade="{{ host.configuracao_snmp.comunidade if host.configuracao_snmp else '' }}"
                                                     data-porta_snmp="{{ host.configuracao_snmp.porta_snmp if host.configuracao_snmp else 161 }}"
                                                     data-servicos_ids="{% for hs in host.host_servicos %}{{ hs.tipo_servico_id }}{% if not loop.last %},{% endif %}{% endfor %}"
+                                                    data-oids_selecionados="{% for o in host.oids_snmp %}{{ o.oid }}{% if not loop.last %},{% endif %}{% endfor %}"
                                                     onclick="abrirModalEditar(this)">
                                                     Editar
                                                 </button>
@@ -111,6 +112,11 @@
                                                     <button type="submit" class="btn btn-sm btn-danger">
                                                         Eliminar
                                                     </button>
+                                                </form>
+
+                                                <form method="post" action="/hosts/{{ host.id }}/verificar">
+                                                    <button type="submit"
+                                                        class="btn btn-sm btn-outline-info">Verificar</button>
                                                 </form>
                                             </div>
                                         </td>
@@ -201,6 +207,28 @@
                                 <label for="porta_snmp" class="form-label">Porta SNMP</label>
                                 <input type="number" class="form-control form-dashboard" id="porta_snmp"
                                     name="porta_snmp" value="161">
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">OIDs a monitorizar</label>
+
+                                {% set marcas = oids_disponiveis | map(attribute='marca') | unique | list %}
+                                {% for marca in marcas %}
+                                <p class="text-secondary mb-1 mt-2"><small>{{ marca }}</small></p>
+                                <div class="row">
+                                    {% for item in oids_disponiveis if item.marca == marca %}
+                                    <div class="col-md-6 mb-1">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="oids_selecionados"
+                                                value="{{ item.oid }}">
+                                            <label class="form-check-label">
+                                                {{ item.nome }}
+                                            </label>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% endfor %}
                             </div>
                         </div>
 
@@ -310,6 +338,26 @@
                                 <label for="editar_porta_snmp" class="form-label">Porta SNMP</label>
                                 <input type="number" class="form-control form-dashboard" id="editar_porta_snmp"
                                     name="porta_snmp" value="161">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">OIDs a monitorizar</label>
+                                {% set marcas = oids_disponiveis | map(attribute='marca') | unique | list %}
+                                {% for marca in marcas %}
+                                <p class="text-secondary mb-1 mt-2"><small>{{ marca }}</small></p>
+                                <div class="row">
+                                    {% for item in oids_disponiveis if item.marca == marca %}
+                                    <div class="col-md-6 mb-1">
+                                        <div class="form-check">
+                                            <input class="form-check-input editar-oid-checkbox" type="checkbox"
+                                                name="oids_selecionados" value="{{ item.oid }}">
+                                            <label class="form-check-label">
+                                                {{ item.nome }}
+                                            </label>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% endfor %}
                             </div>
                         </div>
 
@@ -429,6 +477,21 @@
                     if (checkbox) {
                         checkbox.checked = true;
                     }
+                });
+            }
+
+
+            const oidsIds = botao.getAttribute("data-oids_selecionados");
+
+            document.querySelectorAll(".editar-oid-checkbox").forEach(checkbox => {
+                checkbox.checked = false;
+            });
+
+            if (oidsIds) {
+                const ids = oidsIds.split(",");
+                ids.forEach(oid => {
+                    const checkbox = document.querySelector(`.editar-oid-checkbox[value="${oid}"]`);
+                    if (checkbox) checkbox.checked = true;
                 });
             }
         }

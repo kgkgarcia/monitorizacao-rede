@@ -6,3 +6,4 @@ from app.models.configuracao_snmp import ConfiguracaoSNMP
 from app.models.metrica_snmp import MetricaSNMP
 from app.models.verificacao import Verificacao
 from app.models.alerta import Alerta
+from app.models.oid_snmp import OidSNMP
