@@ -345,7 +345,9 @@ def editar_host_form(
     return RedirectResponse(url="/", status_code=303)
 
 
-# eliminar host
+#####################################
+## ROTA PARA ELIMINAR HOST
+######################################
 @router.post("/form/{host_id}/eliminar")
 def eliminar_host_form(host_id: int, db: Session = Depends(get_db)):
     host = db.query(Host).filter(Host.id == host_id).first()
@@ -358,13 +360,15 @@ def eliminar_host_form(host_id: int, db: Session = Depends(get_db)):
 
     return RedirectResponse(url="/", status_code=303)
 
-
+#LISTAR HOSTS
 @router.get("/", response_model=list[HostResponse])
 def listar_hosts(db: Session = Depends(get_db)):
     return db.query(Host).all()
 
 
-# rota para mostrar detalhes do host
+#####################################
+## ROTA PARA MOSTRAR DETALHES DO HOST
+######################################
 @router.get("/{host_id}/detalhe")
 def detalhe_host(host_id: int, request: Request, db: Session = Depends(get_db)):
     host = db.query(Host).filter(Host.id == host_id).first()
@@ -439,7 +443,9 @@ def buscar_host(host_id: int, db: Session = Depends(get_db)):
     return host
 
 
-# atualizar um host
+#####################################
+## ROTA PARA ATUALIZAR HOST
+######################################
 @router.put("/{host_id}", response_model=HostResponse)
 def atualizar_host(host_id: int, dados: HostUpdate, db: Session = Depends(get_db)):
     host = db.query(Host).filter(Host.id == host_id).first()
@@ -473,7 +479,9 @@ def eliminar_host(host_id: int, db: Session = Depends(get_db)):
     return {"mensagem": "Host eliminado com sucesso"}
 
 
-# verificar host, botao
+#####################################
+## ROTA PARA VERIFICAR HOST MANUALMENTE, BOTÃO
+######################################
 @router.post("/{host_id}/verificar")
 def verificar_host_manual(
     host_id: int, request: Request, db: Session = Depends(get_db)
@@ -501,3 +509,87 @@ def verificar_servico_manual(servico_id: int, db: Session = Depends(get_db)):
     verificar_servico_job(servico_id)
 
     return RedirectResponse(url=f"/hosts/{servico.host_id}/detalhe", status_code=303)
+
+
+
+#####################################
+## ROTA PARA EDITAR SERVIÇO DE UM HOST
+######################################
+
+@router.post("/servico/{servico_id}/editar")
+def editar_servico(
+    servico_id: int,
+    porta: int = Form(None),
+    url: str = Form(None),
+    intervalo_verificacao_segundos: int = Form(60),
+    tempo_limite: int = Form(5),
+    db: Session = Depends(get_db)
+):
+    servico = db.query(HostServico).filter(HostServico.id == servico_id).first()
+
+    if not servico:
+        raise HTTPException(status_code=404, detail="Serviço não encontrado")
+
+    servico.porta = porta
+    servico.url = url
+    servico.intervalo_verificacao_segundos = intervalo_verificacao_segundos
+    servico.tempo_limite = tempo_limite
+
+    db.commit()
+
+    # atualiza o job do scheduler com o novo intervalo
+    try:
+        scheduler.remove_job(f"servico_{servico_id}")
+    except:
+        pass
+
+    try:
+        scheduler.add_job(
+            verificar_servico_job,
+            "interval",
+            seconds=intervalo_verificacao_segundos,
+            args=[servico_id],
+            id=f"servico_{servico_id}"
+        )
+    except:
+        pass
+
+    return RedirectResponse(url=f"/hosts/{servico.host_id}/detalhe", status_code=303)
+
+
+#####################################
+## ROTA PARA ELIMINAR SERVIÇO DE UM HOST, BOTÃO
+######################################
+@router.post("/servico/{servico_id}/remover")
+def remover_servico(servico_id: int, db: Session = Depends(get_db)):
+    servico = db.query(HostServico).filter(HostServico.id == servico_id).first()
+
+    if not servico:
+        raise HTTPException(status_code=404, detail="Serviço não encontrado")
+
+    host_id = servico.host_id
+
+    # remove job do scheduler
+    try:
+        scheduler.remove_job(f"servico_{servico_id}")
+    except:
+        pass
+
+    db.delete(servico)
+    db.commit()
+
+    return RedirectResponse(url=f"/hosts/{host_id}/detalhe", status_code=303)
+
+#####################################
+## ROTA PARA Obter metrica SNMP chamar scheduler, BOTÃO
+@router.post("/{host_id}/snmp/verificar")
+def verificar_snmp_manual(host_id: int, request: Request, db: Session = Depends(get_db)):
+    host = db.query(Host).filter(Host.id == host_id).first()
+
+    if not host:
+        raise HTTPException(status_code=404, detail="Host não encontrado")
+
+    verificar_snmp_job(host_id)
+
+    referer = request.headers.get("referer", "/")
+    return RedirectResponse(url=referer, status_code=303)

@@ -212,7 +212,7 @@ def verificar_snmp_job(host_id: int):
                 snmp.porta_snmp
             )
             
-            print(f">>> {oid.nome} | {resultado['sucesso']} | {resultado['mensagem']}")
+           # print(f">>> {oid.nome} | {resultado['sucesso']} | {resultado['mensagem']}")
 
             if resultado["sucesso"]:
                 metrica = MetricaSNMP(
