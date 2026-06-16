@@ -112,7 +112,6 @@
                                     <th>Porta</th>
                                     <th>URL</th>
                                     <th>Estado</th>
-                                    <th>Tempo Resposta</th>
                                     <th>Ação</th>
                                 </tr>
                             </thead>
@@ -135,14 +134,6 @@
                                         <span class="badge bg-success">UP</span>
                                         {% else %}
                                         <span class="badge bg-danger">DOWN</span>
-                                        {% endif %}
-                                    </td>
-
-                                    <td>
-                                        {% if servico.tempo_resposta is not none %}
-                                        <span class="text-secondary">{{ servico.tempo_resposta }} ms</span>
-                                        {% else %}
-                                        <span>-</span>
                                         {% endif %}
                                     </td>
 

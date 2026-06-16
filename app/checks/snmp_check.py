@@ -7,7 +7,14 @@ def verificar_snmp(host: str, comunidade: str, oid: str, porta: int = 161, timeo
     try:
         valor = puresnmp.get(host, comunidade, oid, port=porta)
         tempo = int((time.time() - inicio) * 1000)
-
+        
+        
+        # tratar o valor recebido
+        if isinstance(valor, bytes):
+            try:
+                valor = valor.decode("utf-8")
+            except UnicodeDecodeError:
+                valor = str(valor)
         return {
             "sucesso": True,
             "tempo_resposta": tempo,

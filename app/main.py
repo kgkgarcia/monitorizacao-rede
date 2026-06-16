@@ -33,10 +33,10 @@ from app.scheduler.scheduler import iniciar_scheduler
 # -------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🚀 A iniciar aplicação...")
+    print("A iniciar aplicação...")
     iniciar_scheduler()
     yield
-    print("🛑 A encerrar aplicação...")
+    print("A encerrar aplicação...")
 
 
 # -------------------------
